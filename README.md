@@ -37,21 +37,21 @@ The NIPTorrent workflow consists of **3 independent pipelines** that must be exe
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        INPUT DATA                                │
+│                        INPUT DATA                               │
 │                   (Unmapped BAM files)                          │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              PIPELINE 1: REPROCESS                               │
-│  UBAM → FASTQ → Mapping → Sort → Remove Duplicates → Index    │
-│  (BWA-MEM / Bowtie2 / TMAP)                                    │
+│              PIPELINE 1: REPROCESS                              │
+│  UBAM → FASTQ → Mapping → Sort → Remove Duplicates → Index      │
+│  (BWA-MEM)                                                      │
 └─────────────────────────────────────────────────────────────────┘
                     │                       │
                     ▼                       ▼
         ┌───────────────────┐   ┌───────────────────┐
         │   PIPELINE 2:     │   │   PIPELINE 3:     │
-        │   CREATE_REF       │   │   PREDICTION      │
+        │   CREATE_REF      │   │   PREDICTION      │
         │                   │   │                   │
         │   Build reference │   │   Fetal fraction  │
         │   datasets from   │   │   Aneuploidy      │
@@ -70,12 +70,10 @@ The NIPTorrent workflow consists of **3 independent pipelines** that must be exe
 | 3 | **FastQC** | Pre/Post quality control reports |
 | 4 | **MultiQC** | Aggregate QC reports |
 | 5 | **BWA-MEM** | Map reads to reference genome |
-| 6 | **Bowtie2** | Alternative mapper (very-sensitive mode) |
-| 7 | **TMAP** | Ion Torrent-specific mapper |
-| 8 | **samtools sort** | Sort BAM files by coordinate |
-| 9 | **samtools markdup** | Remove duplicate reads |
-| 10 | **samtools view -F 4** | Filter to keep only mapped reads |
-| 11 | **samtools index** | Index final BAM files |
+| 6 | **samtools sort** | Sort BAM files by coordinate |
+| 7 | **samtools markdup** | Remove duplicate reads |
+| 8 | **samtools view -F 4** | Filter to keep only mapped reads |
+| 9 | **samtools index** | Index final BAM files |
 
 #### CREATE_REF Pipeline
 
@@ -83,8 +81,8 @@ Creates reference datasets required for PREDICTION pipeline:
 
 | Tool | Description |
 |------|-------------|
-| **SaneFALCON** | Build fetal fraction reference |
-| **NIPTeR** | Create control group reference |
+| **Defragb** | Build fetal fraction reference |
+| **WisecondorX** | Create control group reference |
 | **convert_files** | Generate .gcc, .pickle, .npz files |
 | **convert_gender** | Create gender-specific references |
 
@@ -94,9 +92,7 @@ Creates reference datasets required for PREDICTION pipeline:
 |----------|------|-------------|
 | **Fetal Fraction** | SeqFF | Fast estimation from read counts |
 | | DeFrag | Fragment-based estimation (2 variants) |
-| | SaneFALCON | GC-corrected estimation |
 | **Aneuploidy Detection** | WisecondorX | Z-score based detection with/without blacklist masking |
-| | NIPTeR | NCV (Normalized Chromosome Value) based detection |
 | **Quality Control** | PCA Plot | Sample quality visualization |
 | | Gender Prediction | Determine fetal/maternal sample gender |
 
@@ -114,12 +110,10 @@ NEXTFLOW/REPROCESS/
 ├── run.sh                     # Execution script
 ├── UPSTREAM/
 │   ├── bwa.nf                 # BWA-MEM alignment
-│   ├── bowtie2.nf             # Bowtie2 alignment
-│   ├── tmap.nf                # TMAP alignment (Ion Torrent)
 │   └── samtools/
 │       ├── sort_bam.nf        # Sort BAM
 │       ├── rm_dup.nf          # Remove duplicates
-│       ├── mapped_bam.nf       # Filter mapped reads
+│       ├── mapped_bam.nf      # Filter unmapped reads
 │       └── index.nf           # Index BAM
 ```
 
@@ -131,9 +125,7 @@ NEXTFLOW/REPROCESS/
 | `--outdir` | Output directory | Yes |
 | `--workDir` | Nextflow work directory | Yes |
 | `--ref_bwa` | BWA reference genome index | Yes |
-| `--ref_bowtie2` | Bowtie2 reference index | Yes |
-| `--ref_tmap` | TMAP reference | Yes |
-| `--trimmomatic_options` | Trimmomatic parameters | No |
+| `--trimmomatic_options` | Trimmomatic parameters | Yes |
 
 ### Example Command
 
@@ -143,9 +135,7 @@ cd NEXTFLOW/REPROCESS
 nextflow run main.nf \
     --input_csv /path/to/samples.csv \
     --outdir /path/to/output \
-    --ref_bwa /path/to/hg38.fa \
-    --ref_bowtie2 /path/to/hg38 \
-    --ref_tmap /path/to/tmap_ref \
+    --ref_bwa ./index/hg19.fa \
     --workDir /path/to/output/work \
     -with-trace /path/to/output/trace.tsv \
     -with-timeline /path/to/output/timeline.html \
@@ -157,16 +147,10 @@ nextflow run main.nf \
 ```
 outdir/
 ├── sorted_bwa/          # BWA-MEM sorted BAM files
-│   ├── sample1_sorted.bam
-│   └── sample1_sorted.bam.bai
 ├── dedup_bwa/           # Deduplicated BAM files
-├── mapped_bwa/          # Mapped-only BAM files (unmapped removed)
-├── sorted_bowtie2/      # Bowtie2 results
-├── dedup_bowtie2/
-├── mapped_bowtie2/
-├── sorted_tmap/         # TMAP results
-├── dedup_tmap/
-└── mapped_tmap/
+└── mapped_bwa/          # Mapped-only BAM files (unmapped removed)
+    ├── sample1_sorted.bam
+    └── sample1_sorted.bam.bai
 ```
 
 ---
@@ -181,15 +165,10 @@ Creates reference datasets from normal (euploid) samples for use in the PREDICTI
 NEXTFLOW/CREATE_REF/
 ├── main.nf                    # Main pipeline
 ├── run.sh                     # Execution script
-├── DOWNSTREAM/
-│   ├── create_ref_sanefalcon.nf   # SaneFALCON reference
-│   ├── create_ref_nipter.nf       # NIPTeR reference
-│   ├── create_ref_nipter1.nf      # NIPTeR reference (new)
-│   ├── convert_files.nf           # File format conversion
-│   └── convert_gender.nf         # Gender reference
-├── bin/
-│   └── sanefalcon.sh              # SaneFALCON wrapper
-└── assets/sanefalcon/            # SaneFALCON scripts
+└── DOWNSTREAM/
+    ├── convert_files.nf           # File format conversion
+    ├── convert_gender.nf          # Gender reference
+    └── create_ref.nf              # Build wisecondorX reference datasets
 ```
 
 ### Parameters
@@ -200,7 +179,6 @@ NEXTFLOW/CREATE_REF/
 | `--binSize` | Bin size for genome binning (default: 1000000) | No |
 | `--outdir` | Output directory | Yes |
 | `--workDir` | Nextflow work directory | Yes |
-| `--ff_ref_tsv` | Fetal fraction reference TSV file | Yes (for SaneFALCON) |
 
 ### Example Command
 
@@ -211,7 +189,6 @@ nextflow run main.nf \
     --input_csv /path/to/normal_samples.csv \
     --binSize 1000000 \
     --outdir /path/to/reference_output \
-    --ff_ref_tsv /path/to/ff_reference.tsv \
     --workDir /path/to/reference_output/work \
     -with-trace /path/to/reference_output/trace.tsv \
     -with-timeline /path/to/reference_output/timeline.html \
@@ -222,17 +199,22 @@ nextflow run main.nf \
 
 ```
 outdir/
-├── sanefalcon_ref/            # SaneFALCON reference
-│   ├── profile_ref.tsv
-│   └── model files...
-├── NIPTeR/reference/          # NIPTeR control group
-│   ├── NIPTeR_ref.controlgroup.GC.rds
-│   └── NIPTeR_ref.controlgroup.diagnostics.rds
 ├── converted_files/           # Converted sample files
 │   ├── sample1.gcc
 │   ├── sample1.pickle
 │   └── sample1.npz
-└── gender/                    # Gender prediction references
+├── gender/                    # Gender prediction references
+└── references/                # Reference constructed
+    ├── boydir/
+    |   ├── sample1.gcc
+    |   └── sample1.pickle
+    ├── girldir/
+    |   ├── sample2.gcc
+    |   └── sample2.pickle
+    ├── npz/
+    |   ├── sample1.npz
+    |   └── sample2.npz
+    └── wisecondorx_reference.npz/
 ```
 
 > **Important**: The output from CREATE_REF should be used as `--reference_dir` in the PREDICTION pipeline.
@@ -251,22 +233,18 @@ NEXTFLOW/PREDICTION/
 ├── run.sh                         # Execution script
 ├── DOWNSTREAM/
 │   ├── seqff.nf                   # SeqFF fetal fraction
-│   ├── defrag_a.nf                # DeFrag method A
 │   ├── defrag_b.nf                # DeFrag method B
 │   ├── wisecondorX.nf             # WisecondorX detection
-│   ├── nipter.nf                  # NIPTeR detection
-│   ├── blacklist_size_mask.nf     # Blacklist generation
-│   ├── predict_abnormal_*.nf       # Prediction with/without blacklist
-│   ├── convert_files.nf            # File format conversion
+│   ├── blacklist_size_mask.nf     # Blacklist for WisecondorX generation
+│   ├── convert_files.nf           # File format conversion
 │   ├── convert_gender.nf          # Gender prediction
 │   ├── read_count.nf              # Read counting
 │   ├── PCA_plot.nf                # PCA visualization
-│   ├── combine.nf                  # Combine results
-│   └── report_NIPT.nf              # Final report
+│   ├── combine.nf                 # Combine results
+│   └── report_NIPT.nf             # Final report
 └── bin/
     ├── seqff.py
     ├── wisecondorX.py
-    ├── nipter1.R
     └── ...
 ```
 
@@ -306,21 +284,15 @@ outdir/
 ├── converted_files/               # Converted BAM files
 ├── seqff/                         # SeqFF results
 │   └── seqff_summary.csv
-├── defrag_a/                      # DeFrag A results
 ├── defrag_b/                      # DeFrag B results
 │   └── defrag_b_summary.csv
-├── wisecondorX/                   # WisecondorX results
-│   ├── aberrations/
-│   ├── z_bins/
-│   ├── z_segments/
-│   ├── statistics/
-│   ├── abnormal_tables/
-│   └── wisecondorX_summary.csv
-├── abnormal_without_blacklist_prediction/
-├── abnormal_size_mask_blacklist/
-└── NIPTeR/                        # NIPTeR results (if enabled)
-    ├── rds/
-    └── abnormal_tables/
+└── wisecondorX/                   # WisecondorX results
+    ├── aberrations/
+    ├── z_bins/
+    ├── z_segments/
+    ├── statistics/
+    ├── abnormal_tables/
+    └── wisecondorX_summary.csv 
 ```
 
 ---
@@ -373,23 +345,24 @@ Pre-built reference datasets are available for Vietnamese population. These were
 
 | Condition | Trimming Parameters | Gender Threshold | Reference Directory |
 |-----------|---------------------|-----------------|---------------------|
-| **Raw** | None | 0.03 | `REF_500_old/RAW` |
-| **Trim_50** | Length: 50 bp | 0.03 | `REF_500_old/TRIM_50` |
-| **Trim_15_50** | Length: 50 bp, Quality: 15 | 0.02 | `REF_500_old/TRIM_15_50` |
-| **Trim_20_50** | Length: 50 bp, Quality: 20 | 0.02 | `REF_500_old/TRIM_20_50` |
+| **Trim_15_50** | Length: 50 bp, Quality: 15 | 0.03 | `REF_500_old/TRIM_15_50` |
 
 ### Reference Directory Structure
 
 ```
 reference_dir/
-├── boydir/                    # Male-specific bins
-├── girldir/                   # Female-specific bins
-├── wisecondorx_reference.npz # WisecondorX reference
-├── NIPTeR_control.rds        # NIPTeR control group
-├── sanefalcon/               # SaneFALCON profile
-│   ├── profile_ref.tsv
-│   └── ...
-└── ff_reference.tsv          # Fetal fraction reference
+├── converted_files/               # Converted BAM files
+├── seqff/                         # SeqFF results
+│   └── seqff_summary.csv
+├── defrag_b/                      # DeFrag B results
+│   └── defrag_b_summary.csv
+└── wisecondorX/                   # WisecondorX results
+    ├── aberrations/
+    ├── z_bins/
+    ├── z_segments/
+    ├── statistics/
+    ├── abnormal_tables/
+    └── wisecondorX_summary.csv 
 ```
 
 ---
@@ -405,8 +378,6 @@ nextflow run main.nf \
     --input_csv /data/samples.csv \
     --outdir /results/reprocessed \
     --ref_bwa /ref/hg38.fa \
-    --ref_bowtie2 /ref/hg38 \
-    --ref_tmap /ref/tmap_ref \
     --workDir /results/reprocessed/work
 
 # 2. Create reference from normal samples (first time only)
@@ -415,7 +386,6 @@ nextflow run main.nf \
     --input_csv /data/normal_samples.csv \
     --binSize 1000000 \
     --outdir /reference/my_reference \
-    --ff_ref_tsv /reference/ff_ref.tsv \
     --workDir /reference/my_reference/work
 
 # 3. Run PREDICTION pipeline
