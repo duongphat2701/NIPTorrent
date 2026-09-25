@@ -108,13 +108,13 @@ Converts unmapped BAM files to analysis-ready sorted, deduplicated BAM files usi
 NEXTFLOW/REPROCESS/
 ├── main.nf                    # Main pipeline
 ├── run.sh                     # Execution script
-├── UPSTREAM/
-│   ├── bwa.nf                 # BWA-MEM alignment
-│   └── samtools/
-│       ├── sort_bam.nf        # Sort BAM
-│       ├── rm_dup.nf          # Remove duplicates
-│       ├── mapped_bam.nf      # Filter unmapped reads
-│       └── index.nf           # Index BAM
+└── UPSTREAM/
+    ├── bwa.nf                 # BWA-MEM alignment
+    └── samtools/
+        ├── sort_bam.nf        # Sort BAM
+        ├── rm_dup.nf          # Remove duplicates
+        ├── mapped_bam.nf      # Filter unmapped reads
+        └── index.nf           # Index BAM
 ```
 
 ### Parameters
@@ -134,6 +134,7 @@ cd NEXTFLOW/REPROCESS
 
 nextflow run main.nf \
     --input_csv /path/to/samples.csv \
+    --trimmomatic_options MINLEN:50 SLIDINGWINDOW:30:15 \
     --outdir /path/to/output \
     --ref_bwa ./index/hg19.fa \
     --workDir /path/to/output/work \
@@ -376,6 +377,7 @@ reference_dir/
 cd NEXTFLOW/REPROCESS
 nextflow run main.nf \
     --input_csv /data/samples.csv \
+    --trimmomatic_options MINLEN:50 SLIDINGWINDOW:30:15 \
     --outdir /results/reprocessed \
     --ref_bwa /ref/hg38.fa \
     --workDir /results/reprocessed/work

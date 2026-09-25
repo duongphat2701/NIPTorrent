@@ -1,5 +1,7 @@
 #!/usr/bin/env nextflow
 include { convert_files } from "./DOWNSTREAM/convert_files.nf"
+include { convert_gender } from "./DOWNSTREAM/convert_gender.nf"
+include { create_ref } from "./DOWNSTREAM/create_ref.nf"
 workflow {
     // -----------------------------
     // Load BAM and BAI
@@ -16,39 +18,24 @@ workflow {
         .set { bam_input }
     // Input: Channel: Collect bam and bai files
     bam_list = bam_input
-        .flatMap { sample, bam, bai -> [ bam, bai ] }
+        .flatMap { sample, bam, bai -> [bam, bai] }
         .collect()
-    // Input: Channel: Get bam directories   
-    bamdir = bam_input
-        .map { sample, bam, bai -> bam.parent.toString() }
-        .unique()
-
-    // -----------------------------
-    // Create sanefalcon reference
-    // -----------------------------
-    
-        create_ref_sanefalcon( bamdir.first() )
-
-    /// -----------------------------
-    // Create NIPTeR control group
-    // -----------------------------
-
-        control_bam_list = bam_input
-            .map { sample, bam, bai -> bam }
-            .collectFile(name: 'control_bams.txt') { it.toString() + '\n' }
-
-        create_ref_nipter(control_bam_list)
-
-    // -----------------------------
-    // Create sanefalcon reference
-    // -----------------------------
-
-        create_ref_sanefalcon(bam_list)
 
     // ------------------------//
-    // Create gender reference //
+    //      Convert files      //
     // ------------------------//
 
     convert_files(bam_input)
 
+    // ------------------------//
+    //  Convert gender files   //
+    // ------------------------//
+
+    convert_gender(bam_input)
+
+    // ------------------------//
+    //   Create reference      //
+    // ------------------------//
+
+    create_ref(convert_files.out)
 }

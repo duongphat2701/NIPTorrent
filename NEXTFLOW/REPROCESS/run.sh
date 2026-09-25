@@ -7,10 +7,9 @@
 
 cd ./NIPTorrent/REPROCESS
 # Run the Nextflow main pipeline
-#    --trimmomatic_options MINLEN:50 
-#    --trimmomatic_options MINLEN:50 SLIDINGWINDOW:30:15
 nextflow ./NIPTorrent/REPROCESS/main.nf \
     --input_csv ./path/to/input.csv \
+    --trimmomatic_options MINLEN:50 SLIDINGWINDOW:30:15 \
     --outdir ./path/to/output \
     -with-trace ./path/to/output/trace1.tsv \
     -with-timeline ./path/to/output/timeline1.html \
