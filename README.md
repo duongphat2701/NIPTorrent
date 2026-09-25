@@ -346,7 +346,7 @@ Pre-built reference datasets are available for Vietnamese population. These were
 
 | Condition | Trimming Parameters | Gender Threshold | Reference Directory |
 |-----------|---------------------|-----------------|---------------------|
-| **Trim_15_50** | Length: 50 bp, Quality: 15 | 0.03 | `REF_500_old/TRIM_15_50` |
+| **Trim_15_50** | Length: 50 bp, Quality: 15 | 0.02 | `REF_500_old/TRIM_15_50` |
 
 ### Reference Directory Structure
 
@@ -396,7 +396,7 @@ nextflow run main.nf \
     --input_csv /results/reprocessed/mapped_bwa/samples.csv \
     --outdir /results/prediction \
     --reference_dir /reference/my_reference \
-    --gender_threshold 0.03 \
+    --gender_threshold 0.02 \
     --workDir /results/prediction/work
 ```
 
