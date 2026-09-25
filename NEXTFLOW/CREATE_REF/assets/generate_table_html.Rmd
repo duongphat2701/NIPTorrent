@@ -1,0 +1,67 @@
+---
+title: "&nbsp;"
+date: "`r format(Sys.time(), '%d/%m/%y')`"
+output: html_document
+params:
+  data : ""
+  method : ""
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r include=FALSE}
+library(dplyr)
+library(kableExtra)
+library(tibble)
+df <- read.table(params$data, header = T, sep = '\t', check.names = F)
+```
+
+```{r include=FALSE}
+i <- 0
+my_table <- c()
+
+if (params$method == "proteus"){
+  i <- 1
+  df <- add_column(df, "Quality Control" = "", .after = i)
+  tbl_img <- df
+  tbl_img[,"path"] <- NULL
+  my_table <- tbl_img %>%
+  kbl(booktabs = T) %>%
+  kable_paper("striped", full_width = T) %>%
+  kable_styling(position = "center", fixed_thead = T) %>%
+  column_spec(grep("Quality Control", colnames(df)), image = spec_image(df$path, 1000, 1000)) %>%
+  row_spec(0:nrow(tbl_img),align="c", extra_css = "vertical-align: middle")
+
+  } else if (params$method == "thalassa"){
+  i <- 2
+  df_path <- df[,c("path","path_wisex")]
+  df <- add_column(df, "Quality Control" = "", .after = i)
+  df <- add_column(df, "Z-score (bin visualization)" = "", .after = 10)
+  df[,"path"] <- NULL
+  df[,"path_wisex"] <- NULL
+  tbl_img <- df
+  my_table <- tbl_img %>%
+  kbl(booktabs = T) %>%
+  kable_paper("striped", full_width = T) %>%
+  kable_styling(position = "center", fixed_thead = T) %>%
+  column_spec(grep("Quality Control", colnames(df)), image = spec_image(df_path$path, 1000, 1000)) %>%
+  column_spec(grep("Z-score (bin visualization)", colnames(df), fixed = T), image = spec_image(df_path$path_wisex, 1000, 1000)) %>%
+  row_spec(0:nrow(tbl_img),align="c", extra_css = "vertical-align: middle")
+
+  }
+
+```
+
+```{r echo = FALSE}
+my_table
+```
+
+
+
+

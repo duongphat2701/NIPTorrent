@@ -1,0 +1,370 @@
+---
+title: "Bioinformatic Report"
+date: 20/1/2025
+date-format: long
+
+execute:
+  echo: false
+  warning: false
+number-sections: true
+highlight-style: pygments
+format:
+  html:
+    smooth-scroll: true
+    embed-resources: true
+    toc: true
+    toc-title: Contents
+    grid:
+      body-width: 1200px
+      sidebar-width: 258px
+    code-fold: false
+editor: visual
+---
+
+```{r library, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(readr)
+library(patchwork)
+library(fs)
+library(reactable)
+library(DT)
+```
+
+# General
+
+```{r calculate-number, include=FALSE}
+# Load and preprocess the thalassa.tsv file
+thalassa_path <- "/mnt/rdisk/tuanthanh/NIPT/NiPTUNE/results_ilu/tables/thalassa.tsv"
+thalassa_data <- read_tsv(thalassa_path) %>%
+  select(-path, -path_wisex)
+
+# Calculate the number of samples (excluding the title row)
+number <- nrow(thalassa_data)
+```
+
+The number of samples in this run is: **`r number`**
+
+------------------------------------------------------------------------
+
+# Sample Quality Control
+
+## Sequencing Depth
+
+```{r sequencing-depth, echo=FALSE}
+# Load your sequencing depth data
+# depth_data <- read_csv("path_to_depth_file.csv")
+# Example plot
+# ggplot(depth_data, aes(x = sample_id, y = depth)) +
+#     geom_bar(stat = "identity") +
+#     theme_minimal() +
+#     labs(title = "Sequencing Depth per Sample", x = "Sample ID", y = "Depth")
+```
+
+## PCA
+
+```{r pca-plot, echo=FALSE}
+library(ggplot2)
+library(ggfortify)
+library(tibble)
+
+file.input <- "/mnt/rdisk/tuanthanh/NIPT/NiPTUNE/results_ilu/pca_bins/PCA_bins.csv"  # Input data file (_df)
+metadata.input <- "/mnt/rdisk/tuanthanh/NIPT/NiPTUNE/results_ilu/tables/despina.tsv"
+#file.output <- args[2]  # Output file name for the SVG plot
+
+# Read the input data
+df1 <- read.table(file.input, header = TRUE, sep = ";", row.names = 1, check.names = FALSE)
+# Remove columns where the sum is zero
+data.without0val <- df1[, colSums(df1) > 0, drop = FALSE]
+# Remove columns where variance is zero
+data.without0val <- data.without0val[, apply(data.without0val, 2, var, na.rm = TRUE) != 0, drop = FALSE]
+# Check if there are enough columns and rows for PCA
+if (ncol(data.without0val) < 2) {
+  stop("Error: Not enough variables (columns) to perform PCA. At least two are required.")
+}
+if (nrow(data.without0val) < 2) {
+  stop("Error: Not enough observations (rows) to perform PCA. At least two are required.")
+}
+
+pca1 <- prcomp(data.without0val, center = TRUE, scale. = TRUE)
+
+# Calculate the proportion of variance explained by each component
+percent_var <- pca1$sdev^2 / sum(pca1$sdev^2) * 100
+
+# Prepare labels for PC1 and PC2 with percentage of variance
+x_label <- paste0("PC1 (", round(percent_var[1], 2), "%)")
+y_label <- paste0("PC2 (", round(percent_var[2], 2), "%)")
+
+# Extract PCA scores (the coordinates of each sample in the new PCA space)
+pca_scores <- as.data.frame(pca1$x)
+
+df2 <- read.table(metadata.input, header = TRUE, sep = "\t", row.names = 1, check.names = FALSE)
+
+merged_data <- merge(pca_scores, df2, by = "row.names")
+colnames(merged_data)[colnames(merged_data) == "read number"] <- "sequencing_depth"
+
+# Basic PCA plot with metadata
+p <- ggplot(merged_data, aes(x = PC1, y = PC2)) +
+  geom_point(size = 3, color = "darkgreen") +
+  theme_minimal() +
+  labs(title = "PCA Plot with SD", x = x_label, y = y_label) +
+  theme(legend.position = "right")
+
+# Calculate the distance of each point to the cluster center (mean of PC1 and PC2)
+cluster_center <- colMeans(merged_data[, c("PC1", "PC2")])
+merged_data$distance_to_center <- sqrt((merged_data$PC1 - cluster_center[1])^2 + (merged_data$PC2 - cluster_center[2])^2)
+
+# Get the names of the 3 points with the largest distance to the cluster center
+ordered_scores <- merged_data[order(-merged_data$distance_to_center), ]
+top2_outliers <- ordered_scores[1:2, "Row.names"]
+
+# Add text labels for the top 3 outliers, mapping the label to the center of the point
+p <- p + geom_text(aes(label = ifelse(Row.names %in% top2_outliers, Row.names, "")), vjust = -1, hjust = 0.5)
+
+p 
+```
+
+## Genome-Wide Plots (Tabset)
+
+### Before Normalize
+
+```{r genome-wide-before, echo=FALSE}
+# Replace with actual data and code
+# ggplot(data, aes(x = position, y = value)) +
+#     geom_line() +
+#     theme_minimal() +
+#     labs(title = "Genome-Wide Plot Before Normalization", x = "Position", y = "Value")
+```
+
+### After Normalize
+
+```{r genome-wide-after, echo=FALSE}
+# Replace with actual data and code
+# ggplot(data, aes(x = position, y = normalized_value)) +
+#     geom_line() +
+#     theme_minimal() +
+#     labs(title = "Genome-Wide Plot After Normalization", x = "Position", y = "Normalized Value")
+```
+
+------------------------------------------------------------------------
+
+# Gender Prediction & Fetal Fraction
+
+## Z-Score for Trisomies 13, 18, 21
+
+**Condition:**
+
+-   Red: Z-score greater than threshold
+-   Blue: Z-score less than threshold
+-   Gray: Z-score in the gray zone
+
+```{r z-score-table, echo=FALSE}
+# Display the table using reactable with central alignment
+thalassa_data <- thalassa_data %>%
+  mutate(Label = case_when(
+    `Z-score chr13` > 5 ~ "Trisomy 13",
+    `Z-score chr13` < -5 ~ "Monosomy 13",
+    `Z-score chr18` > 5 ~ "Trisomy 18",
+    `Z-score chr18` < -5 ~ "Monosomy 18",
+    `Z-score chr21` > 5 ~ "Trisomy 21",
+    `Z-score chr21` < -5 ~ "Monosomy 21",
+    TRUE ~ "Normal"
+  ))
+
+# Display the table using reactable with central alignment, conditional formatting, and labeling
+reactable(
+  thalassa_data,
+  columns = setNames(lapply(names(thalassa_data), function(col) {
+    if (col %in% tail(names(thalassa_data), 4)) {
+      colDef(
+        name = col,
+        align = "center",
+        cell = if (col != "Label") {
+          function(value) {
+            # Determine the color based on the value
+            color <- if (value > 5) {
+              "red"
+            } else if (value < -5) {
+              "blue"
+            } else if (value >= 4.0 && value <= 6.0) {
+              "gray"
+            } else {
+              "black"
+            }
+            sprintf("<span style='color:%s;'>%.4f</span>", color, round(value, 4))
+          }
+        } else {
+          NULL  # No special formatting for the label column
+        },
+        html = TRUE
+      )
+    } else {
+      colDef(name = col, align = "center")
+    }
+  }), names(thalassa_data)),
+  searchable = TRUE,
+  sortable = TRUE,
+  defaultPageSize = 10,
+  highlight = TRUE,
+  bordered = TRUE,
+  filterable = TRUE
+)
+```
+
+------------------------------------------------------------------------
+
+# Z-Score Results (Full)
+
+## By Chromosome
+
+```{r setup, include=FALSE}
+# Load and process data
+sao_data <- readr::read_tsv("/mnt/rdisk/tuanthanh/NIPT/NiPTUNE/results_ilu/tables/sao.tsv", 
+                     col_types = cols()) %>%
+  dplyr::select(-last_col()) %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(., 4)))
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+# Create named list of column definitions
+col_defs <- list()
+for (col_name in names(sao_data)) {
+  if (col_name == names(sao_data)[1]) {  # First column (sample names)
+    col_defs[[col_name]] <- colDef(
+      name = "Sample",
+      width = 150,
+      sticky = "left"
+    )
+  } else {  # Z-score columns
+    col_defs[[col_name]] <- colDef(
+      name = col_name,
+      format = colFormat(digits = 4),
+      style = function(value) {
+        color <- if (value > 5) {
+          "red"
+        } else if (value < -5) {
+          "blue"
+        } else if (value >= 4.0 && value <= 6.0) {
+          "darkgray"
+        } else {
+          "black"
+        }
+        list(color = color)
+      }
+    )
+  }
+}
+
+# Create the reactable with named column definitions
+reactable(
+  sao_data,
+  columns = col_defs,
+  filterable = TRUE,
+  searchable = TRUE,
+  bordered = TRUE,
+  striped = TRUE,
+  highlight = TRUE,
+  defaultPageSize = 15,
+  showPageSizeOptions = TRUE,
+  pageSizeOptions = c(15, 30, 50, 100)
+)
+```
+
+## By Segment
+
+```{r z-score-segment, echo=FALSE}
+# Replace with actual data
+# zscore_segment_data <- read_csv("path_to_zscore_segment_file.csv")
+# knitr::kable(zscore_segment_data, caption = "Z-Score by Segment")
+```
+
+## By Bin
+
+```{r z-score-bin, echo=FALSE}
+# Replace with actual data
+# zscore_bin_data <- read_csv("path_to_zscore_bin_file.csv")
+# knitr::kable(zscore_bin_data, caption = "Z-Score by Bin")
+```
+
+------------------------------------------------------------------------
+
+# CNV Plots (Reactable)
+
+```{r setup1, include=FALSE}
+library(purrr)
+library(stringr)
+library(tibble)
+library(dplyr)
+library(fs)
+library(reactable)
+```
+
+# Sample Images Report
+
+```{r, echo=FALSE}
+# Base path to the directories
+base_path <- "/mnt/rdisk/tuanthanh/NIPT/NiPTUNE/results_ilu/copy_number_alteration_data/"
+
+# Output directory for accessible image paths
+output_dir <- "images"
+dir.create(output_dir, showWarnings = FALSE)
+
+# Function to retrieve genome_wide.png paths from sample directories
+get_sample_images <- function(base_path, output_dir) {
+  # List all directories ending with .plots
+  sample_dirs <- dir_ls(base_path, type = "directory", glob = "*.plots")
+  
+  # Map over directories to get the genome_wide.png file
+  sample_images <- map_df(sample_dirs, function(dir) {
+    png <- file.path(dir, "genome_wide.png")
+    if (file.exists(png)) {
+      # Copy to output directory with a unique name
+      dest <- file.path(output_dir, basename(dir))
+      dir.create(dest, showWarnings = FALSE)
+      file.copy(png, file.path(dest, basename(png)))
+      tibble(
+        sample = basename(dir) %>% str_remove("\\.plots$"),  # Remove .plots extension
+        image_path = file.path(dest, basename(png))
+      )
+    } else {
+      NULL
+    }
+  })
+  
+  return(sample_images)
+}
+
+# Get the list of images
+sample_images <- get_sample_images(base_path, output_dir)
+
+# Create a reactable table for the samples
+reactable(
+  sample_images,
+  columns = list(
+    sample = colDef(name = "Sample Name"),
+    image_path = colDef(
+      name = "Image Preview",
+      cell = function(value) {
+        sprintf(
+          "<a href='%s' target='_blank'><img src='%s' style='height:200px; width:300px;'></a>",
+          value, value
+        )  # Adds zoom functionality by linking to full-size image
+      },
+      html = TRUE
+    )
+  ),
+  searchable = TRUE,
+  sortable = TRUE,
+  defaultPageSize = 5,
+  highlight = TRUE
+)
+```
+
+------------------------------------------------------------------------
+
+# Appendix
