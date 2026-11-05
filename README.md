@@ -215,7 +215,7 @@ outdir/
     ├── npz/
     |   ├── sample1.npz
     |   └── sample2.npz
-    └── wisecondorx_reference.npz/
+    └── wisecondorx_reference.npz
 ```
 
 > **Important**: The output from CREATE_REF should be used as `--reference_dir` in the PREDICTION pipeline.
@@ -236,7 +236,6 @@ NEXTFLOW/PREDICTION/
 │   ├── seqff.nf                   # SeqFF fetal fraction
 │   ├── defrag_b.nf                # DeFrag method B
 │   ├── wisecondorX.nf             # WisecondorX detection
-│   ├── blacklist_size_mask.nf     # Blacklist for WisecondorX generation
 │   ├── convert_files.nf           # File format conversion
 │   ├── convert_gender.nf          # Gender prediction
 │   ├── read_count.nf              # Read counting
@@ -257,7 +256,6 @@ NEXTFLOW/PREDICTION/
 | `--outdir` | Output directory | Yes |
 | `--reference_dir` | Directory with reference datasets | Yes |
 | `--gender_threshold` | Threshold for gender prediction | Yes |
-| `--basic_blacklist` | Path to blacklist BED file | No |
 | `--binSize` | Bin size (default: 1000000) | No |
 | `--workDir` | Nextflow work directory | Yes |
 
@@ -270,7 +268,7 @@ nextflow run main.nf \
     --input_csv /path/to/samples.csv \
     --outdir /path/to/results \
     --reference_dir /path/to/reference_output \
-    --gender_threshold 0.03 \
+    --gender_threshold 0.02 \
     --workDir /path/to/results/work \
     -with-trace /path/to/results/trace.tsv \
     -with-timeline /path/to/results/timeline.html \
@@ -344,26 +342,24 @@ Pre-built reference datasets are available for Vietnamese population. These were
 
 ### Available References
 
-| Condition | Trimming Parameters | Gender Threshold | Reference Directory |
-|-----------|---------------------|-----------------|---------------------|
-| **Trim_15_50** | Length: 50 bp, Quality: 15 | 0.02 | `REF_500_old/TRIM_15_50` |
+| Condition | Trimming Parameters | Gender Threshold |
+|-----------|---------------------|-----------------|
+| **Trim_15_50** | Length: 50 bp, Quality: 15 | 0.02 |
 
 ### Reference Directory Structure
 
 ```
 reference_dir/
-├── converted_files/               # Converted BAM files
-├── seqff/                         # SeqFF results
-│   └── seqff_summary.csv
-├── defrag_b/                      # DeFrag B results
-│   └── defrag_b_summary.csv
-└── wisecondorX/                   # WisecondorX results
-    ├── aberrations/
-    ├── z_bins/
-    ├── z_segments/
-    ├── statistics/
-    ├── abnormal_tables/
-    └── wisecondorX_summary.csv 
+   ├── boydir/
+   |   ├── sample1.gcc
+   |   └── sample1.pickle
+   ├── girldir/
+   |   ├── sample2.gcc
+   |   └── sample2.pickle
+   ├── npz/
+   |   ├── sample1.npz
+   |   └── sample2.npz
+   └── wisecondorx_reference.npz
 ```
 
 ---
