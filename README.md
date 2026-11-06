@@ -375,7 +375,7 @@ nextflow run main.nf \
     --input_csv /data/samples.csv \
     --trimmomatic_options MINLEN:50 SLIDINGWINDOW:30:15 \
     --outdir /results/reprocessed \
-    --ref_bwa /ref/hg38.fa \
+    --ref_bwa /ref/hg19.fa \
     --workDir /results/reprocessed/work
 
 # 2. Create reference from normal samples (first time only)
